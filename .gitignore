@@ -1,0 +1,6 @@
+.pio
+.vscode
+.idea
+.emacs*
+/*.h
+/*.ino
