@@ -4,3 +4,6 @@
 .emacs*
 /*.h
 /*.ino
+*~
+.DS_Store
+.#*
