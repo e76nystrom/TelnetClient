@@ -1,4 +1,3 @@
-//#include "defines.h"
 #include <SPI.h>
 #define _ETHERNET_WEBSERVER_LOGLEVEL_ 4 // NOLINT(*-reserved-identifier)
 #include "Ethernet_GenericX.h"
@@ -9,10 +8,11 @@ constexpr int uxTopUsedPriority = configMAX_PRIORITIES - 1;
 
 #if defined(CLIENT)
 constexpr char CLIENT_NAME[] = "Client1";
-#endif
-constexpr char SERVER_NAME[] = "Server1";
-//constexpr char SERVER_NAME[] = "mac-mini";
+#endif	/* CLIENT */
 
+constexpr char SERVER_NAME[] = "Server1";
+
+#define RESTART
 #define TFT
 
 #if defined(TFT)
@@ -44,32 +44,6 @@ constexpr char SERVER_NAME[] = "Server1";
 
 #define RTK_SEND
 
-#define NUMBER_OF_MAC 20
-
-byte mac[][NUMBER_OF_MAC] =
-{
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x02 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x04 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x05 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x06 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x07 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x08 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x09 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x0A },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0B },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x0C },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0D },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x0E },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x0F },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x10 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x11 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x12 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x13 },
-  { 0xDE, 0xAD, 0xBE, 0xEF, 0xBE, 0x14 },
-};
-
 #define PORT     8088
 
 #if defined(SERVER)
@@ -87,6 +61,16 @@ void releaseStuckSockets();
 #define TX_PIN 40		/* serial 2 tx pin */
 
 #define W5500_RST_PORT 15
+
+#define GPS_LIB
+
+#if defined(GPS_LIB)
+
+#include "../include/cfg.h"
+#include "../include/dbgPin.h"
+#include "gpsLib.h"
+
+#else
 
 #define DBG0_PIN 4
 #define DBG1_PIN 5
@@ -245,6 +229,8 @@ typedef struct S_RTK_DATA
 
 T_RTK_DATA rtk;
 
+#endif	/* GPS_LIB */
+
 #if defined(TFT)
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 #endif
@@ -258,10 +244,8 @@ void setup()
 
  pinMode(DBG0_PIN, OUTPUT);
  pinMode(DBG1_PIN, OUTPUT);
-
- delay(2000);
  
- while (!Serial && millis() < 1000)
+ while (!Serial && millis() < 500)
  {}
 
  Serial.println("Serial testing");
@@ -280,6 +264,13 @@ void setup()
  Serial.print('0');
  Serial.flush();
 
+#if defined(SERVER)
+ puts("server started connect to reference gps");
+#endif
+#if defined(CLIENT)
+ puts("client started connect to remote gps");
+#endif
+
  Serial2.setRxBufferSize(1600);
  Serial2.setTxBufferSize(1600);
  Serial2.begin(115200, SERIAL_8N1, 39, 40); // rxPin, txPin
@@ -296,11 +287,9 @@ void setup()
  digitalWrite(W5500_RST_PORT,HIGH);
  delay(50);
 
-printf("reading mac\n");
 #if 1
-  uint64_t baseMac = ESP.getEfuseMac();
- //esp_read_mac(mac, ESP_MAC_WIFI_STA);
-  printf("mac %llx\n", baseMac);
+ uint64_t baseMac = ESP.getEfuseMac();
+ printf("mac %llx\n", baseMac);
  auto p = reinterpret_cast<uint8_t *>(&baseMac);
  for (i = 0; i < 6; i++)
  {
@@ -310,7 +299,6 @@ printf("reading mac\n");
  }
  printf("\n");
 #endif
-printf("reading mac done\n");
 
 #if defined(TFT)
  dbg0Set();
@@ -323,7 +311,7 @@ printf("reading mac done\n");
 
  tft.fillScreen(TFT_BLACK);
  tft.setCursor(0, 0, 1);
- int fontHeight = tft.fontHeight();
+ const int fontHeight = tft.fontHeight();
  printf("font height %d\n", fontHeight), 
  tft.setTextColor(TFT_RED, TFT_BLACK);
  tft.setTextSize(1);
@@ -341,41 +329,25 @@ printf("reading mac done\n");
  Ethernet.init(USE_THIS_SS_PIN);
  puts("ethernet init done");
 
-#if defined(BOARD_NAME)
- Serial.println(F("Board :"), "", F(", setCsPin:"), USE_THIS_SS_PIN);
-#else
- printf("%s %d\n", "Unknown board setCsPin:", USE_THIS_SS_PIN);
-#endif
-
-// uint16_t index = millis() % NUMBER_OF_MAC;
-
 #if defined(SERVER)
  Serial.println("begin server");
  Ethernet.setHostname(SERVER_NAME);
- uint16_t index = 0;
 #endif	/* SERVER */
 
 #if defined(CLIENT)
  puts("begin client");
  Ethernet.setHostname(CLIENT_NAME);
- uint16_t index = 1;
-#endif	/* CLIENT */
+ #endif	/* CLIENT */
 
- Ethernet.begin(reinterpret_cast<uint8_t*>(&baseMac));
  puts("begin done");
 
- //SPIClass SPI2(HSPI);
- //Ethernet.begin(mac[index], &SPI2);
-
- // Just info to know how to connect correctly
+  // Just info to know how to connect correctly
  // To change for other SPI
  puts("Currently Used SPI pinout:");
  printf("%s %d\n", "MOSI:", MOSI);
  printf("%s %d\n", "MISO:", MISO);
  printf("%s %d\n", "SCK:",  SCK);
  printf("%s %d\n", "SS:",   SS);
-
- printf("Using mac index = %d\n", index);
 
 #if defined(SERVER)
  const char *hostName = SERVER_NAME;
@@ -410,9 +382,9 @@ printf("reading mac done\n");
   else if (Ethernet.getAltChip() == w5100s)
    fputs("W5100S => ", stdout);
 
-  printf("Speed:  %s", Ethernet.speedReport());
-  printf(", Duplex: %s", Ethernet.duplexReport());
-  printf(", Link status: %d\n", Ethernet.linkStatus());
+  printf("Speed %s Duplex %s Link status %d\n",
+         Ethernet.speedReport(), Ethernet.duplexReport(),
+         Ethernet.linkStatus());
  }
 
  // give the Ethernet shield a second to initialize:
@@ -427,7 +399,6 @@ printf("reading mac done\n");
 #if defined(CLIENT)
  puts("connecting...");
 
- // if you get a connection, report back via serial:
  if (client.connect(SERVER_NAME, PORT))
  {
   puts("connected");
@@ -435,7 +406,6 @@ printf("reading mac done\n");
  }
  else
  {
-  // if you didn't get a connection to the server:
   puts("connection failed");
  }
 #endif /* CLIENT */
@@ -540,7 +510,7 @@ void loop()
   uint32_t t0 = millis();
   if ((t0 - conTmr) > 2000)
   {
-#if 1
+#if defined(RESTART)
    Serial.println("restarting esp32");
    Serial.flush();
    delay(100);
@@ -559,7 +529,7 @@ void loop()
    tft.setCursor(0, 0, 2);
    tft.setTextColor(TFT_WHITE,TFT_BLACK);  tft.setTextSize(1);
    tft.println("Hello World!");
-#endif
+#endif	/* TFT */
 
    Serial.println("call software reset");
    W5100Class::softReset();       // reset the chip
@@ -592,7 +562,7 @@ void loop()
    {
     conTmr = t0;
    }
-#endif
+#endif	/* RESTART */
   }
  }
 
@@ -610,6 +580,11 @@ static void processData(EthernetClient c)
  printHex(bytes, len);
 #endif
 
+#if defined(GPS_LIB)
+
+ processRemData(rtk.buf, len);
+
+#else
  const auto *ptr = rtk.buf;
  while (len > 0)
  {
@@ -703,6 +678,7 @@ static void processData(EthernetClient c)
    break;
   }
  }
+#endif  /* GPS_LIB */
 }
 
 #endif	/* SERVER */
@@ -718,6 +694,13 @@ void checkSerial()
    printf("receive timeout\n");
   }
  }
+
+#if defined(GPS_LIB)
+ 
+ processSerial();
+}
+
+#else
 
  while (Serial2.available() > 0)
  {
@@ -869,6 +852,9 @@ void checkSerial()
   dbg1Clr();
  }
 }
+
+#endif	/* GPS_LIB  */
+
 
 void checkLan(EthernetClient c)
 {
