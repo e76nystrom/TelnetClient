@@ -1,3 +1,8 @@
+// Device connected to stationary GPS is a TCP client
+// Device connected to moveable GPS is a TCP server
+// moveable GPS starts and waits for stationary GPS to connect to it
+// staGPS -> RTKData -> client -> LAN or Wifi -> server -> RTKData -> movGPS
+
 #include <SPI.h>
 #define _ETHERNET_WEBSERVER_LOGLEVEL_ 4 // NOLINT(*-reserved-identifier)
 #include "Ethernet_GenericX.h"
@@ -42,8 +47,6 @@ constexpr char SERVER_NAME[] = "Server1";
 
 #endif	/* TFT */
 
-#define RTK_SEND
-
 #define PORT     8088
 
 #if defined(SERVER)
@@ -51,8 +54,9 @@ EthernetServer tcpServer(PORT);
 static void processData(EthernetClient c);
 #endif	/* SERVER */
 
-#if defined(CLIENT)
 EthernetClient client;
+
+#if defined(CLIENT)
 bool connected;
 void releaseStuckSockets();
 #endif	/* CLIENT */
@@ -235,7 +239,7 @@ T_RTK_DATA rtk;
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 #endif
 
-#define TFT_GREY 0x5AEB // New colour
+#define TFT_GREY 0x5AEB // New color
 
 void setup()
 {
@@ -261,14 +265,13 @@ void setup()
   delay(100);
   i -= 1;
  }
- Serial.print('0');
- Serial.flush();
+ Serial.println('0');
 
 #if defined(SERVER)
- puts("server started connect to reference gps");
+ puts("server started connect to remote gps");
 #endif
 #if defined(CLIENT)
- puts("client started connect to remote gps");
+ puts("client started connect to reference gps");
 #endif
 
  Serial2.setRxBufferSize(1600);
@@ -339,6 +342,7 @@ void setup()
  Ethernet.setHostname(CLIENT_NAME);
  #endif	/* CLIENT */
 
+ Ethernet.begin(reinterpret_cast<uint8_t*>(&baseMac));
  puts("begin done");
 
   // Just info to know how to connect correctly
@@ -427,6 +431,15 @@ uint32_t conTmr;
 uint8_t serialOutBuf[1800];
 #endif
 
+#if defined(GPS_LIB)
+
+bool sendBinary(const uint8_t *data, size_t len)
+{
+ return client.write(data, len);
+}
+
+#endif  /* GPS_LIB */
+
 void loop()
 {
 #if defined(SERVER)
@@ -440,16 +453,23 @@ void loop()
   }
  }
 
- EthernetClient client = tcpServer.available();
+ client = tcpServer.available();
  if (client)
  {
   processData(client);
  }
 
+#if defined(GPS_LIB)
+
+ pollSerial();
+ processSerial();
+
+#else
+
  while (Serial2.available())
  {
   uint8_t c = Serial2.read();
-#if 1
+#if 0
   const uint8_t c0 = c < ' ' ? ' ' : c;
   printf("*%02x %c ", c, c0);
   fflush(stdout);
@@ -459,12 +479,16 @@ void loop()
   if (rcvFil >= RCV_BUF_LEN ||
       c == '\n')
   {
+#if 0
    fputs("\n", stdout);
    printHex(rcvBuf, rcvFil);
+#endif
    tcpServer.write(rcvBuf, rcvFil);
    rcvFil = 0;
   }
- }
+ } /* while */
+
+#endif	/* GPS_LIB */
 
  if (Serial.available() > 0)
  {
@@ -816,7 +840,7 @@ void checkSerial()
 #if 0
     if (rtk.buf[0] == '$')
     {
-     /* $GNGGA, 091628.00, 3844.78718183,N, 07755.96337656,W, 7,28,0.5,135.9670,M,-33.6653,M, ,*44 */
+     // $GNGGA, 091628.00, 3844.78718183,N, 07755.96337656,W, 7,28,0.5,135.9670,M,-33.6653,M, ,*44
      if (strncmp(rtk.buf, "$GNGGA", 6) == 0)
      {
       char *p = nextArg(rtk.buf);
