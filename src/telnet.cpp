@@ -3,19 +3,18 @@
 // moveable GPS starts and waits for stationary GPS to connect to it
 // staGPS -> RTKData -> client -> LAN or Wifi -> server -> RTKData -> movGPS
 
-#include <SPI.h>
-#define _ETHERNET_WEBSERVER_LOGLEVEL_ 4 // NOLINT(*-reserved-identifier)
-#include "Ethernet_GenericX.h"
-#include <utility/w5100.h>
-#include "FreeRTOS.h"
+#define WIRED_LAN
+#include "cfg.h"
+#include <Arduino.h>
+#include "wired.h"
+
+// #include <SPI.h>
+// #define _ETHERNET_WEBSERVER_LOGLEVEL_ 4 // NOLINT(*-reserved-identifier)
+// #include "Ethernet_GenericX.h"
+// #include <utility/w5100.h>
+// #include "FreeRTOS.h"
 
 constexpr int uxTopUsedPriority = configMAX_PRIORITIES - 1;
-
-#if defined(CLIENT)
-constexpr char CLIENT_NAME[] = "Client1";
-#endif	/* CLIENT */
-
-constexpr char SERVER_NAME[] = "Server1";
 
 #define RESTART
 #define TFT
@@ -47,31 +46,26 @@ constexpr char SERVER_NAME[] = "Server1";
 
 #endif	/* TFT */
 
-#define PORT     8088
+// #if defined(SERVER)
+// EthernetServer tcpServer(PORT);
+// static void processData(EthernetClient c);
+// #endif	/* SERVER */
+//
+// EthernetClient client;
 
-#if defined(SERVER)
-EthernetServer tcpServer(PORT);
-static void processData(EthernetClient c);
-#endif	/* SERVER */
-
-EthernetClient client;
-
-#if defined(CLIENT)
-bool connected;
-void releaseStuckSockets();
-#endif	/* CLIENT */
+// #if defined(CLIENT)
+// bool connected;
+// void releaseStuckSockets();
+// #endif	/* CLIENT */
 
 #define RX_PIN 39		/* serial 2 rx pin */
 #define TX_PIN 40		/* serial 2 tx pin */
-
-#define W5500_RST_PORT 15
 
 #define GPS_LIB
 
 #if defined(GPS_LIB)
 
-#include "../include/cfg.h"
-#include "../include/dbgPin.h"
+#include "dbgPin.h"
 #include "gpsLib.h"
 
 #else
@@ -236,20 +230,136 @@ void releaseStuckSockets();
 #endif	/* GPS_LIB */
 
 #if defined(TFT)
+
+#define TFT_GREY 0x5AEB // New color
+
 TFT_eSPI tft = TFT_eSPI();  // Invoke library, pins defined in User_Setup.h
 int fontHeight;
 int fontWidth;
+
 #endif
 
-#define TFT_GREY 0x5AEB // New color
+// #if defined(WIRED_LAN)
+//
+// void wiredReset()
+// {
+//  pinMode(W5500_RST_PORT,OUTPUT);
+//  digitalWrite(W5500_RST_PORT,LOW);
+//  delay(10);
+//  digitalWrite(W5500_RST_PORT,HIGH);
+//  delay(50);
+// }
+//
+// void wiredInit(char *host)
+// {
+//  uint64_t baseMac = ESP.getEfuseMac();
+//  printf("mac %llx\n", baseMac);
+//  auto p = reinterpret_cast<uint8_t *>(&baseMac);
+//  for (int i = 0; i < 6; i++)
+//  {
+//   printf("%02X", *p++);
+//   if (i < 5)
+//    printf(":");
+//  }
+//  printf("\n");
+//
+//  puts("starting on " ETHERNET_GENERIC_VERSION);
+//
+// #define USE_THIS_SS_PIN   10
+//
+//  printf("%s %d\n", "ESP32 setCsPin:", USE_THIS_SS_PIN);
+//
+//  puts("ethernet init start");
+//  Ethernet.init(USE_THIS_SS_PIN);
+//  puts("ethernet init done");
+//
+// #if defined(SERVER)
+//  Serial.println("begin server");
+//  Ethernet.setHostname(host);
+// #endif	/* SERVER */
+//
+// #if defined(CLIENT)
+//  puts("begin client");
+//  Ethernet.setHostname(CLIENT_NAME);
+//  #endif	/* CLIENT */
+//
+//  Ethernet.begin(reinterpret_cast<uint8_t*>(&baseMac));
+//  puts("begin done");
+//
+//   // Just info to know how to connect correctly
+//  // To change for other SPI
+//  puts("Currently Used SPI pinout:");
+//  printf("%s %d\n", "MOSI:", MOSI);
+//  printf("%s %d\n", "MISO:", MISO);
+//  printf("%s %d\n", "SCK:",  SCK);
+//  printf("%s %d\n", "SS:",   SS);
+//
+// #if defined(SERVER)
+//  wifiHostName = host;
+// #endif
+// #if defined(CLIENT)
+//  wifiHostName = CLIENT_NAME;
+// #endif
+//
+//  printf("hostname %s\n", wifiHostName);
+//
+//  strncpy(ipAddress, Ethernet.localIP().toString().c_str(), sizeof(ipAddress));
+//
+//  printf("Connected! IP address %s\n", ipAddress);
+//  printf("%s\n", ipAddress);
+// }
+//
+// void wiredStart()
+// {
+//  EthernetChip_t chip = Ethernet.getChip();
+//  if ( (chip == w5500) || (chip == w6100) || (Ethernet.getAltChip() == w5100s) )
+//  {
+//   if (chip == w6100)
+//    fputs("W6100 => ", stdout);
+//   else if (chip == w5500)
+//    fputs("W5500 => ", stdout);
+//   else if (Ethernet.getAltChip() == w5100s)
+//    fputs("W5100S => ", stdout);
+//
+//   printf("Speed %s Duplex %s Link status %d\n",
+//          Ethernet.speedReport(), Ethernet.duplexReport(),
+//          Ethernet.linkStatus());
+//  }
+//
+//  // give the Ethernet shield a second to initialize:
+//  delay(1000);
+// #if defined(SERVER)
+//  tcpServer.begin();
+//
+//  IPAddress ip = Ethernet.localIP();
+//  printf("server address %s %d\n", ip.toString().c_str(), PORT);
+//
+// #endif	/* SERVER */
+//
+// #if defined(CLIENT)
+//  puts("connecting...");
+//
+//  if (client.connect(SERVER_NAME, PORT))
+//  {
+//   puts("connected");
+//   connected = true;
+//  }
+//  else
+//  {
+//   puts("connection failed");
+//  }
+// #endif /* CLIENT */
+// }
+//
+// #endif	/* WIRED_LAN */
 
 void setup()
 {
  buildCRC24qTable();
+
  Serial.begin(115200);
 
- pinMode(DBG0_PIN, OUTPUT);
- pinMode(DBG1_PIN, OUTPUT);
+ dbgInit();
  
  while (!Serial && millis() < 500)
  {}
@@ -286,24 +396,9 @@ void setup()
  Serial2.printf("started\n\r");
  dbg1Clr();
 
- pinMode(W5500_RST_PORT,OUTPUT);
- digitalWrite(W5500_RST_PORT,LOW);
- delay(10);
- digitalWrite(W5500_RST_PORT,HIGH);
- delay(50);
-
-#if 1
- uint64_t baseMac = ESP.getEfuseMac();
- printf("mac %llx\n", baseMac);
- auto p = reinterpret_cast<uint8_t *>(&baseMac);
- for (i = 0; i < 6; i++)
- {
-  printf("%02X", *p++);
-  if (i < 5)
-   printf(":");
- }
- printf("\n");
-#endif
+#if defined(WIRED_LAN)
+ wiredReset();
+#endif	/* WIRED_LAN */
 
 #if defined(TFT)
  dbg0Set();
@@ -325,99 +420,33 @@ void setup()
  tft.setTextSize(1);
  tft.println("Initializing");
  dbg0Clr();
-#endif
+#endif	/* TFT */
 
- puts("starting on " ETHERNET_GENERIC_VERSION);
-
-#define USE_THIS_SS_PIN   10
-
- printf("%s %d\n", "ESP32 setCsPin:", USE_THIS_SS_PIN);
-
- puts("ethernet init start");
- Ethernet.init(USE_THIS_SS_PIN);
- puts("ethernet init done");
+#if defined(WIRED_LAN)
 
 #if defined(SERVER)
- Serial.println("begin server");
- Ethernet.setHostname(SERVER_NAME);
+ wiredInit(SERVER_NAME);
 #endif	/* SERVER */
 
 #if defined(CLIENT)
- puts("begin client");
- Ethernet.setHostname(CLIENT_NAME);
- #endif	/* CLIENT */
+ wiredInit(CLIENT_NAME);
+#endif	/* CLIENT */
 
- Ethernet.begin(reinterpret_cast<uint8_t*>(&baseMac));
- puts("begin done");
-
-  // Just info to know how to connect correctly
- // To change for other SPI
- puts("Currently Used SPI pinout:");
- printf("%s %d\n", "MOSI:", MOSI);
- printf("%s %d\n", "MISO:", MISO);
- printf("%s %d\n", "SCK:",  SCK);
- printf("%s %d\n", "SS:",   SS);
-
-#if defined(SERVER)
- const char *hostName = SERVER_NAME;
-#endif
-#if defined(CLIENT)
- const char *hostName = CLIENT_NAME;
-#endif
-
- printf("hostname %s\n", hostName);
-
- char ipAddress[20];
- strncpy(ipAddress, Ethernet.localIP().toString().c_str(), sizeof(ipAddress));
-
- printf("Connected! IP address %s\n", ipAddress);
- printf("%s\n", ipAddress);
+#endif	/* WIRED_LAN */
 
 #if defined(TFT)
  tft.setCursor(0, 0);
  int yPos = 0;
- int xPos = tft.drawString(hostName, 0 ,yPos);
+ int xPos = tft.drawString(wifiHostName, 0 ,yPos);
  xPos += tft.drawString(" ", xPos ,yPos);
  tft.drawString(ipAddress, xPos ,0);
 #endif	/* TFT */
  
- EthernetChip_t chip = Ethernet.getChip();
- if ( (chip == w5500) || (chip == w6100) || (Ethernet.getAltChip() == w5100s) )
- {
-  if (chip == w6100)
-   fputs("W6100 => ", stdout);
-  else if (chip == w5500)
-   fputs("W5500 => ", stdout);
-  else if (Ethernet.getAltChip() == w5100s)
-   fputs("W5100S => ", stdout);
+#if defined(WIRED_LAN)
+ 
+ wiredStart();
 
-  printf("Speed %s Duplex %s Link status %d\n",
-         Ethernet.speedReport(), Ethernet.duplexReport(),
-         Ethernet.linkStatus());
- }
-
- // give the Ethernet shield a second to initialize:
- delay(1000);
-#if defined(SERVER)
- tcpServer.begin();
-
- IPAddress ip = Ethernet.localIP();
- printf("server address %s %d\n", ip.toString().c_str(), PORT);
-#endif	/* SERVER */
-
-#if defined(CLIENT)
- puts("connecting...");
-
- if (client.connect(SERVER_NAME, PORT))
- {
-  puts("connected");
-  connected = true;
- }
- else
- {
-  puts("connection failed");
- }
-#endif /* CLIENT */
+#endif	/* WIRED_LAN */
 
  while (Serial2.available())
   Serial2.read();
@@ -430,18 +459,18 @@ int rcvFil = 0;
 #endif  /* SERVER */
 
 #if defined(CLIENT)
-void checkSerial();
-void checkLan(EthernetClient c);
-uint32_t conTmr;
-uint8_t serialOutBuf[1800];
+// void checkSerial();
+// void checkLan(EthernetClient c);
+// uint32_t conTmr;
+// uint8_t serialOutBuf[1800];
 #endif
 
 #if defined(GPS_LIB)
 
-bool sendBinary(const uint8_t *data, size_t len)
-{
- return client.write(data, len);
-}
+// bool sendBinary(const uint8_t *data, size_t len)
+// {
+//  return client.write(data, len);
+// }
 
 #endif  /* GPS_LIB */
 
@@ -475,11 +504,13 @@ void loop()
   }
  }
 
- client = tcpServer.available();
- if (client)
- {
-  processData(client);
- }
+ // client = tcpServer.available();
+ // if (client)
+ // {
+ //  processData(client);
+ // }
+
+ wiredData();
 
 #if defined(GPS_LIB)
 
@@ -542,91 +573,92 @@ void loop()
 
 #if defined(CLIENT)
 
- if (connected)
- {
-  if (client.connected())
-  {
-   checkSerial();
-
-   if (client.available())
-   {
-    const ssize_t len = client.read(serialOutBuf, sizeof(serialOutBuf));
-    Serial2.write(serialOutBuf, len);
-
-    printf("Received %u byte(s)\n", len);
-   }
-  }
-  else
-  {
-   puts("disconnecting.");
-   client.stop();
-   connected = false;
-   conTmr = millis();
-  }
- }
- else
- {
-  while (Serial.available() > 0)
-   Serial.read();
-
-  uint32_t t0 = millis();
-  if ((t0 - conTmr) > 2000)
-  {
-#if defined(RESTART)
-   Serial.println("restarting esp32");
-   Serial.flush();
-   delay(100);
-   ESP.restart();
-#else
-   Serial.println("reset and start again");
-   digitalWrite(W5500_RST_PORT,g574LOW);
-   delay(10);
-   digitalWrite(W5500_RST_PORT,HIGH);
-   delay(50);
-
-#if defined(TFT)
-   tft.init();
-
-   tft.fillScreen(TFT_BLACK);
-   tft.setCursor(0, 0, 2);
-   tft.setTextColor(TFT_WHITE,TFT_BLACK);  tft.setTextSize(1);
-   tft.println("Hello World!");
-#endif	/* TFT */
-
-   Serial.println("call software reset");
-   W5100Class::softReset();       // reset the chip
-   delay(500);			  // give the chip time to recover
-
-   Ethernet.setHostname(CLIENT_NAME);
-   uint16_t index = 1;
-   Ethernet.begin(mac[index]);
-
-   Serial.print(F("Connected! IP address: "));
-   Serial.println(Ethernet.localIP());
-
-   EthernetChip_t chip = Ethernet.getChip();
-   Serial.printf("chip %02x\n", chip);
-
-   Serial.print(F("Speed: "));
-   Serial.print(Ethernet.speedReport());
-   Serial.print(F(", Duplex: "));
-   Serial.print(Ethernet.duplexReport());
-   Serial.print(F(", Link status: "));
-   Serial.println(Ethernet.linkReport());
-
-   Serial.println("try to connect");
-   if (client.connect(server, PORT))
-   {
-    Serial.println("connected");
-    connected = true;
-   }
-   else
-   {
-    conTmr = t0;
-   }
-#endif	/* RESTART */
-  }
- }
+ wiredRead();
+//  if (connected)
+//  {
+//   if (client.connected())
+//   {
+//    checkSerial();
+//
+//    if (client.available())
+//    {
+//     const ssize_t len = client.read(serialOutBuf, sizeof(serialOutBuf));
+//     Serial2.write(serialOutBuf, len);
+//
+//     printf("Received %u byte(s)\n", len);
+//    }
+//   }
+//   else
+//   {
+//    puts("disconnecting.");
+//    client.stop();
+//    connected = false;
+//    conTmr = millis();
+//   }
+//  }
+//  else
+//  {
+//   while (Serial.available() > 0)
+//    Serial.read();
+//
+//   const uint32_t t1 = millis();
+//   if ((t1 - conTmr) > 2000)
+//   {
+// #if defined(RESTART)
+//    Serial.println("restarting esp32");
+//    Serial.flush();
+//    delay(100);
+//    ESP.restart();
+// #else
+//    Serial.println("reset and start again");
+//    digitalWrite(W5500_RST_PORT,g574LOW);
+//    delay(10);
+//    digitalWrite(W5500_RST_PORT,HIGH);
+//    delay(50);
+//
+// #if defined(TFT)
+//    tft.init();
+//
+//    tft.fillScreen(TFT_BLACK);
+//    tft.setCursor(0, 0, 2);
+//    tft.setTextColor(TFT_WHITE,TFT_BLACK);  tft.setTextSize(1);
+//    tft.println("Hello World!");
+// #endif	/* TFT */
+//
+//    Serial.println("call software reset");
+//    W5100Class::softReset();       // reset the chip
+//    delay(500);			  // give the chip time to recover
+//
+//    Ethernet.setHostname(CLIENT_NAME);
+//    uint16_t index = 1;
+//    Ethernet.begin(mac[index]);
+//
+//    Serial.print(F("Connected! IP address: "));
+//    Serial.println(Ethernet.localIP());
+//
+//    EthernetChip_t chip = Ethernet.getChip();
+//    Serial.printf("chip %02x\n", chip);
+//
+//    Serial.print(F("Speed: "));
+//    Serial.print(Ethernet.speedReport());
+//    Serial.print(F(", Duplex: "));
+//    Serial.print(Ethernet.duplexReport());
+//    Serial.print(F(", Link status: "));
+//    Serial.println(Ethernet.linkReport());
+//
+//    Serial.println("try to connect");
+//    if (client.connect(server, PORT))
+//    {
+//     Serial.println("connected");
+//     connected = true;
+//    }
+//    else
+//    {
+//     conTmr = t0;
+//    }
+// #endif	/* RESTART */
+//   }
+// }
 
 #endif	/* CLIENT */
 
@@ -634,17 +666,17 @@ void loop()
 
 #if defined(SERVER)
 
-static void processData(EthernetClient c)
-{
- size_t len = c.read(reinterpret_cast <uint8_t*>(rtk.buf), RTK_BUF_SIZE);
-#if 0
- const auto *bytes = reinterpret_cast <const uint8_t *>(rtk.buf);
- printHex(bytes, len);
-#endif
+// static void processData(EthernetClient c)
+// {
+//  size_t len = c.read(reinterpret_cast <uint8_t*>(rtk.buf), RTK_BUF_SIZE);
+// #if 0
+//  const auto *bytes = reinterpret_cast <const uint8_t *>(rtk.buf);
+//  printHex(bytes, len);
+// #endif
 
 #if defined(GPS_LIB)
 
- processRemData(rtk.buf, len);
+//  processRemData(rtk.buf, len);
 
 #else
 
@@ -743,13 +775,20 @@ static void processData(EthernetClient c)
 //  }
 
 #endif  /* GPS_LIB */
-}
+// }
 
 #endif	/* SERVER */
 
 #if defined(CLIENT)
 void checkSerial()
 {
+#if defined(GPS_LIB)
+ 
+ processSerial();
+}
+
+#else
+
  if (rtk.state != RCV_IDLE)
  {
   if ((millis() - rtk.t0) > 100)
@@ -758,13 +797,6 @@ void checkSerial()
    printf("receive timeout\n");
   }
  }
-
-#if defined(GPS_LIB)
- 
- processSerial();
-}
-
-#else
 
 //  while (Serial2.available() > 0)
 //  {
@@ -920,33 +952,33 @@ void checkSerial()
 
 #endif	/* GPS_LIB  */
 
-void checkLan(EthernetClient c)
-{
- uint8_t buf[1800];
- ssize_t len = c.read(buf, sizeof(buf));
- printf("Received %u byte(s)\n", len);
- Serial2.write(buf, len);
-}
-
-void releaseStuckSockets()
-{
- for (uint8_t i = 0; i < MAX_SOCK_NUM; i++)
-  {
-  uint8_t s = W5100Class::readSnSR(i);
-  switch (s)
-  {
-  case SnSR::CLOSED:
-   break;
-  case SnSR::CLOSE_WAIT:
-  case SnSR::FIN_WAIT:
-  case SnSR::CLOSING:
-  case SnSR::TIME_WAIT:
-  case SnSR::LAST_ACK:
-   W5100Class::execCmdSn((SOCKET)i, Sock_CLOSE);
-   break;
-  default:
-   Serial.printf("socket %d state %02x", i, s);
-  }
- }
-}
+// void checkLan(EthernetClient c)
+// {
+//  uint8_t buf[1800];
+//  ssize_t len = c.read(buf, sizeof(buf));
+//  printf("Received %u byte(s)\n", len);
+//  Serial2.write(buf, len);
+// }
+//
+// void releaseStuckSockets()
+// {
+//  for (uint8_t i = 0; i < MAX_SOCK_NUM; i++)
+//   {
+//   uint8_t s = W5100Class::readSnSR(i);
+//   switch (s)
+//   {
+//   case SnSR::CLOSED:
+//    break;
+//   case SnSR::CLOSE_WAIT:
+//   case SnSR::FIN_WAIT:
+//   case SnSR::CLOSING:
+//   case SnSR::TIME_WAIT:
+//   case SnSR::LAST_ACK:
+//    W5100Class::execCmdSn((SOCKET)i, Sock_CLOSE);
+//    break;
+//   default:
+//    Serial.printf("socket %d state %02x", i, s);
+//   }
+//  }
+// }
 #endif	/* CLIENT */
