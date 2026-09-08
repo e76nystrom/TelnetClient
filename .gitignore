@@ -1,6 +1,7 @@
 .pio
 .vscode
 .idea
+save
 .emacs*
 /*.h
 /*.ino
