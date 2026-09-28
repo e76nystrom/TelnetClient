@@ -1,7 +1,7 @@
 // Device connected to stationary GPS is a TCP client
 // Device connected to moveable GPS is a TCP server
 // moveable GPS starts and waits for stationary GPS to connect to it
-// staGPS -> RTKData -> client -> LAN or Wifi -> server -> RTKData -> movGPS
+// staicGPS -> RTKData -> client -> LAN or Wifi -> server -> RTKData -> movableGPS
 
 #define WIRED_LAN
 #include "cfg.h"
@@ -204,11 +204,11 @@ void loop()
 
 #if defined(SERVER)
 
- if (rtk.state != RCV_IDLE)
+ if (rtk.ser.state != RCV_IDLE)
  {
-  if ((millis() - rtk.t0) > 100)
+  if ((millis() - rtk.ser.t) > 100)
   {
-   rtk.state = RCV_IDLE;
+   rtk.ser.state = RCV_IDLE;
    puts("receive timeout");
   }
  }
@@ -252,7 +252,7 @@ void loop()
   if (c == '?')
   {
    putc(c, stdout);
-   printf("rtk state %d\n" ,rtk.state);
+   printf("rtk state %d\n" ,rtk.ser.state);
   }
  }
 
