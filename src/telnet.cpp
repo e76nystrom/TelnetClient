@@ -1,12 +1,21 @@
-// Device connected to stationary GPS is a TCP client
-// Device connected to moveable GPS is a TCP server
+// Device connected to stationary GPS is a TCP server
+// Device connected to moveable GPS is a TCP client
 // moveable GPS starts and waits for stationary GPS to connect to it
-// staicGPS -> RTKData -> client -> LAN or Wifi -> server -> RTKData -> movableGPS
+// static GPS -> RTKData -> server -> LAN or Wifi -> client -> RTKData -> movable GPS
 
-#define WIRED_LAN
-#include "cfg.h"
+//#define WIRED_LAN
+//#include "cfg.h"
 #include <Arduino.h>
+
+#if defined(WIRED_LAN)
 #include "wired.h"
+#endif  /* WIRED_LAN */
+
+#if defined(WIFI_LAN)
+#include "esp_netif.h"
+#include "wired.h"
+#include "wifi.h"
+#endif  /* WIFI_LAN */
 
 // #include <SPI.h>
 // #define _ETHERNET_WEBSERVER_LOGLEVEL_ 4 // NOLINT(*-reserved-identifier)
@@ -53,7 +62,7 @@ constexpr int uxTopUsedPriority = configMAX_PRIORITIES - 1;
 
 #if defined(GPS_LIB)
 
-#include "dbgPin.h"
+//#include "dbgPin.h"
 #include "gpsLib.h"
 
 #endif	/* GPS_LIB */
@@ -95,10 +104,10 @@ void setup()
  Serial.println('0');
 
 #if defined(SERVER)
- puts("server started connect to remote gps");
+ puts("server started connect to reference gps");
 #endif
 #if defined(CLIENT)
- puts("client started connect to reference gps");
+ puts("client started connect to remote gps");
 #endif
 
  Serial2.setRxBufferSize(1600);
@@ -111,16 +120,14 @@ void setup()
  Serial2.printf("started\n\r");
  dbg1Clr();
 
-#if defined(WIRED_LAN)
- wiredReset();
-#endif	/* WIRED_LAN */
+ wiredReset();  // reset for w5500 and tft display
 
 #if defined(TFT)
  dbg0Set();
  printf("setup running on Core: %d\n", xPortGetCoreID());
 
  printf("TFT_DC %d TFT_MOSI %d TFT_SCLK %d TFT_CS %d\n",
-	TFT_DC, TFT_MOSI, TFT_SCLK, TFT_CS);
+	    TFT_DC, TFT_MOSI, TFT_SCLK, TFT_CS);
 
  tft.init();
 
@@ -140,7 +147,8 @@ void setup()
 #if defined(WIRED_LAN)
 
 #if defined(SERVER)
- wiredInit(SERVER_NAME);
+ Serial.println("begin server");
+ wiredInit( SERVER_NAME);
 #endif	/* SERVER */
 
 #if defined(CLIENT)
@@ -149,18 +157,45 @@ void setup()
 
 #endif	/* WIRED_LAN */
 
+#if defined(WIFI_LAN)
+
+#if defined(SERVER)
+ wifiInit(SERVER_NAME);
+#endif	/* SERVER */
+
+#if defined(CLIENT)
+puts("begin client");
+ wifiInit(CLIENT_NAME);
+#endif	/* CLIENT */
+
+ wifiConnect();
+
+#endif  /* WIFI_LAN */
+
 #if defined(TFT)
  tft.setCursor(0, 0);
  int yPos = 0;
+#if defined(WIRED_LAN)
  int xPos = tft.drawString(wifiHostName, 0 ,yPos);
  xPos += tft.drawString(" ", xPos ,yPos);
  tft.drawString(ipAddress, xPos ,0);
+#endif  /* WIRED_LAN */
+#if defined(WIFI_LAN)
+ esp_netif_t *netIf = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+ const char *buf = nullptr;
+ if (const esp_err_t err =esp_netif_get_hostname(netIf, &buf);
+     err == ESP_OK && buf != nullptr)
+ {
+  printf("hostname %s\n", buf);
+  int xPos = tft.drawString(buf, 0 ,yPos);
+  xPos += tft.drawString(" ", xPos ,yPos);
+  tft.drawString(ipAddress, xPos ,0);
+ }
+#endif  /* WIFI_LAN */
 #endif	/* TFT */
  
 #if defined(WIRED_LAN)
- 
- wiredStart();
-
+  wiredStart();
 #endif	/* WIRED_LAN */
 
  while (Serial2.available())
@@ -169,18 +204,22 @@ void setup()
 
 void loop()
 {
+ const unsigned int t0 = millis();
 
 #if defined(TFT)
  static unsigned int tmr0;
- unsigned int t0 = millis();
  if ((t0 - tmr0) > 1000)
  {
   tmr0 = t0;
-
-  const float temp = temperatureRead();
-
   char buf[20];
+  const float temp = temperatureRead();
+#if defined(WIRED_LAN)
   snprintf(buf, sizeof(buf), "%4.1f ", temp);
+#endif  /* WIRED_LAN */
+#if defined(WIFI_LAN)
+  const signed char rssi = wifiRSSI();
+  snprintf(buf, sizeof(buf), "%3d %4.1f %4d ", rssi, temp, rtk.rxCount);
+#endif  /* WIFI_LAN */
   tft.setCursor(0, static_cast<int16_t>(1 * fontHeight));
   tft.print(buf);
  }
@@ -201,54 +240,33 @@ void loop()
 
 #endif	/* TFT */
 
-
 #if defined(SERVER)
 
- if (rtk.ser.state != RCV_IDLE)
+#if defined(WIRED_LAN)
+ wiredData();
+#endif  /* WIRED_LAN */
+
+#if defined(WIFI_LAN)
+ if (connected)
  {
-  if ((millis() - rtk.ser.t) > 100)
+  if (t0 - lastSend.timestamp > 5000)
   {
-   rtk.ser.state = RCV_IDLE;
-   puts("receive timeout");
+   lastSend.timestamp = t0;
+   if (client != nullptr)
+   {
+    client->write("PING\n");
+    // printf("send ping\n");
+   }
   }
  }
-
- wiredData();
-
-#if defined(GPS_LIB)
+#endif  /* WIFI_LAN */
 
  pollSerial();
  processSerial();
 
-#else
-
-//  while (Serial2.available())
-//  {
-//   uint8_t c = Serial2.read();
-// #if 0
-//   const uint8_t c0 = c < ' ' ? ' ' : c;
-//   printf("*%02x %c ", c, c0);
-//   fflush(stdout);
-// #endif
-//   rcvBuf[rcvFil] = c;
-//   rcvFil++;
-//   if (rcvFil >= RCV_BUF_LEN ||
-//       c == '\n')
-//   {
-// #if 0
-//    fputs("\n", stdout);
-//    printHex(rcvBuf, rcvFil);
-// #endif
-//    tcpServer.write(rcvBuf, rcvFil);
-//    rcvFil = 0;
-//   }
-//  } /* while */
-
-#endif	/* GPS_LIB */
-
  if (Serial.available() > 0)
  {
-  char c = Serial.read();
+  const char c = Serial.read();
   if (c == '?')
   {
    putc(c, stdout);
@@ -260,7 +278,37 @@ void loop()
 
 #if defined(CLIENT)
 
+#if defined(WIRED_LAN)
  wiredRead();
+#endif  /* WIRED_LAN */
+
+#if defined(WIFI_LAN)
+
+ pollSerial();
+ processSerial();
+
+ if (connected)
+ {
+  if (t0 - lastSend.timestamp > 5000)
+  {
+   lastSend.timestamp = t0;
+   if (client != nullptr)
+   {
+    client->write("PING\n");
+    // printf("send ping\n");
+   }
+  }
+ }
+ else
+ {
+  if ((millis() - connectTmr) > 5000)
+  {
+   connectTmr = t0;
+   connectToServer();
+   printf("try to reconnect\n");
+  }
+ }
+#endif  /* WIFI_LAN */
 
 #endif	/* CLIENT */
 
